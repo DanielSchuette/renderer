@@ -15,19 +15,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+#include "io.hh"
 #include "tga.hh"
 
-int main(void)
+int main(int argc, char** argv)
 {
-    {
-        TGA tga_file { "./assets/floor_diffuse.tga" };
-        assert(!tga_file.is_empty_image());
-    }
-
-    {
-        TGA tga_file {};
-        assert(!tga_file.is_empty_image());
-    }
+    if (argc < 2) fail("usage: renderer <tga_input_file>");
+    TGA tga_file { *++argv };
 
     return 0;
 }

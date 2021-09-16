@@ -4,6 +4,7 @@ SRC_DIR   = src
 BUILD_DIR = build
 BIN_DIR   = bin
 BIN       = my_tinyrenderer
+BIN_FLAGS = "./assets/floor_diffuse.tga"
 
 SHELL = /bin/bash
 
@@ -17,7 +18,8 @@ LDFLAGS = -lm -dl -lstdc++
 # For release builds, set DEBUG to anything but "yes".
 DEBUG = yes
 ifeq ($(DEBUG), yes)
-	CCFLAGS += -g # to remove assertions, add -DNDEBUG
+	# to remove assertions, add -DNDEBUG below
+	CCFLAGS += -ggdb -fno-eliminate-unused-debug-symbols
 endif
 
 .PHONY: all $(BIN) install test clean help debug leak_test check
@@ -60,13 +62,13 @@ install: all
 	cp $(BUILD_DIR)/$(BIN) $(BIN_DIR)
 
 test: all
-	./$(BUILD_DIR)/$(BIN)
+	./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 debug: all
-	gdb ./$(BUILD_DIR)/$(BIN)
+	gdb -q -tui -args ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 leak_test: all
-	valgrind -s --leak-check=full ./$(BUILD_DIR)/$(BIN)
+	valgrind -s --leak-check=full ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 # Since _all_ build artifacts are created in the build directory, we don't need
 # to recursively call any subdirectory's Makefile for cleanup. We check whether

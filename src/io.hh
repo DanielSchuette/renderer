@@ -10,12 +10,27 @@ concept printable = requires (T t, std::ostream& os) {
     { os << t } -> std::same_as<std::ostream&>;
 };
 
-template<printable... Ts>
+constexpr bool LOGGING_ON = true;
+
+template<printable... Ts, std::ostream& os = std::cerr, bool log = LOGGING_ON>
 [[noreturn]] void fail(Ts&&... args)
 {
-    ((std::cerr << args), ...);
-    std::cerr << '\n';
+    if constexpr (!log) exit(1);
+
+    os << "error: ";
+    ((os << args), ...);
+    os << ".\n";
     exit(1);
+}
+
+template<printable... Ts, std::ostream& os = std::cerr, bool log = LOGGING_ON>
+void warn(Ts&&... args)
+{
+    if constexpr (!log) return;
+
+    os << "warning: ";
+    ((os << args), ...);
+    os << ".\n";
 }
 
 #endif /* _IO_HH_ */

@@ -7,7 +7,7 @@ renderer for educational purposes.
 Similar projects are
 - https://github.com/zauonlok/renderer
 - https://bisqwit.iki.fi/jutut/kuvat/programming_examples/polytut/
--
+
 The TGA library implements the specification at
 https://www.dca.fee.unicamp.br/~martino/disciplinas/ea978/tgaffs.pdf pretty
 much to 100%.

@@ -1,10 +1,12 @@
 #ifndef _TGA_HH_
 #define _TGA_HH_
 
+#include <vector>
+
 #include "common.hh"
 
 class TGA {
-public:
+private:
     // Refer to the spec for a detailed description of these fields.
     struct Header {
         uint8_t id_length;
@@ -18,20 +20,63 @@ public:
         struct ImageSpec {
             uint16_t x_origin, y_origin;
             uint16_t width, height;
-            uint8_t  bits_per_pixel;
-            uint8_t  descriptor; // 0:3 -> alpha depth, 4:5 -> direction
+            uint8_t  color_bits_per_pixel;
+            uint8_t  desc_bits_per_pixel;
         } image_spec __attribute__((packed));
     } __attribute__((packed));
 
-private:
-    bool is_image_present  = false;
-    bool has_color_map     = false;
-    bool is_true_color     = false;
-    bool is_grayscale      = false;
-    bool is_rle_compressed = false;
-    Header::ColorMapSpec color_map_spec {};
+    /* The footer contains an offset to the developer directory. Since it is
+     * mostly application specific, we don't care and don't even parse it when
+     * reading a TGA file from disk.
+     */
+    struct Footer {
+        uint32_t ext_area_offset;
+        uint32_t dev_dir_offset;
+        char signature[18]; // including a terminating '\0'
+    } __attribute__((packed));
 
-    void set_image_type(const Header&);
+    struct ExtensionArea {
+        uint16_t length;
+        char     author_name[41];     // including a terminating '\0'
+        char     author_comment[324]; // 4 strings, each terminated with '\0'
+        uint16_t date_time[6];
+        char     job_name[41];        // including a terminating '\0'
+        uint16_t job_time[3];
+        char     software_id[41];     // including a terminating '\0'
+        uint16_t software_version0;
+        char     software_version1;
+        uint8_t  key_color[4];
+        uint16_t pixel_aspect_ratio[2];
+        uint16_t gamma_value[2];
+        uint32_t color_correction_offset;
+        uint32_t postage_stamp_offset;
+        uint32_t scan_line_tbl_offset;
+        uint8_t  attributes_type;
+    } __attribute__((packed));
+
+    bool   is_new_format = false;
+    Header header {};
+    Footer footer {};
+    ExtensionArea ext_area {};
+    std::vector<uint8_t> color_map  {};
+    std::vector<uint8_t> image_data {};
+    std::vector<uint8_t> image_id_data {};
+
+    // @TODO: not yet implemented.
+    // std::vector<uint32_t> scan_line_tbl {};
+    // std::vector<uint8_t>  postage_stamp {};
+    // std::array<uint16_t, 4096> color_correction_tbl {};
+
+    /* @NOTE: We explicitely _do not_ associate an instance of this class with
+     * a particular file for reading/writing. All methods that work on files
+     * take either a path or a FILE* as an input parameter.
+     */
+    void parse_header(FILE*);
+    void parse_footer(FILE*);
+    void parse_ext_area(FILE*);
+
+
+    static void read_n_bytes(uint8_t*, size_t, const char*, FILE*);
 
 public:
     /* We have two options for working with TGA files:
@@ -44,8 +89,6 @@ public:
     explicit TGA(void) = default;
 
     ~TGA(void) = default;
-
-    bool is_empty_image(void) const { return !this->is_image_present; }
 };
 
 #endif /* _TGA_HH_ */
