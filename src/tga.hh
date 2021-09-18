@@ -8,7 +8,7 @@
 class TGA {
 private:
     // Refer to the spec for a detailed description of these fields.
-    struct Header {
+    struct Header final {
         uint8_t id_length;
         uint8_t color_map_type;
         uint8_t image_type;
@@ -16,14 +16,14 @@ private:
             uint16_t first_entry_index;
             uint16_t length;
             uint8_t  bits_per_pixel;
-        } color_map_spec __attribute__((packed));
-        struct ImageSpec {
+        } __attribute__((packed)) color_map_spec;
+        struct ImageSpec final {
             uint16_t x_origin, y_origin;
             uint16_t width, height;
             uint8_t  color_bits_per_pixel;
             uint8_t  desc_bits_per_pixel;
-        } image_spec __attribute__((packed));
-    } __attribute__((packed));
+        } __attribute__((packed)) image_spec;
+    } __attribute__((packed)) header {};
 
     /* The footer contains an offset to the developer directory. Since it is
      * mostly application specific, we don't care and don't even parse it when
@@ -33,7 +33,7 @@ private:
         uint32_t ext_area_offset;
         uint32_t dev_dir_offset;
         char signature[18]; // including a terminating '\0'
-    } __attribute__((packed));
+    } __attribute__((packed)) footer {};
 
     struct ExtensionArea {
         uint16_t length;
@@ -52,12 +52,9 @@ private:
         uint32_t postage_stamp_offset;
         uint32_t scan_line_tbl_offset;
         uint8_t  attributes_type;
-    } __attribute__((packed));
+    } __attribute__((packed)) ext_area {};
 
-    bool   is_new_format = false;
-    Header header {};
-    Footer footer {};
-    ExtensionArea ext_area {};
+    bool is_new_format = false;
     std::vector<uint8_t> color_map  {};
     std::vector<uint8_t> image_data {};
     std::vector<uint8_t> image_id_data {};
@@ -74,6 +71,7 @@ private:
     void parse_header(FILE*);
     void parse_footer(FILE*);
     void parse_ext_area(FILE*);
+    void read_rle_image_data(uint8_t*, size_t, size_t, size_t);
 
 
     static void read_n_bytes(uint8_t*, size_t, const char*, FILE*);

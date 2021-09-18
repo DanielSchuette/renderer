@@ -19,11 +19,14 @@ TGA::TGA(std::string_view filepath)
     TGA::parse_header(file_ptr);
     TGA::parse_footer(file_ptr);
 
-    /* Lastly, TGA has 3 variable length fields (length follows in parens):
+    /* Lastly, TGA has 3 variable length fields (length in parens), that follow
+     * right after fixed-sized header:
      *  6 = Image ID (ID_LENGTH) -> optional, containing identifying info
      *  7 = Color map (COLOR_MAP_SPEC.LENGTH) -> table containing color map
      *  8 = Image data (IMAGE_SPEC) -> stored according to image descriptor
      */
+    assert(!fseek(file_ptr, sizeof(Header), SEEK_SET));
+
     {
         size_t length = header.id_length;
         this->image_id_data.reserve(length);
@@ -43,32 +46,31 @@ TGA::TGA(std::string_view filepath)
                           file_ptr);
     }
 
-    bool is_rle = this->header.image_type & 0x8;
-    warn("image is rle=", is_rle);
-
     if (this->header.color_map_type == 0x1) {
         assert((this->header.image_type & 0x7) == 0x1);
+        assert(this->color_map.size() > 0);
         fail("color-mapped images aren't supported yet");
     }
 
     if (this->header.color_map_type == 0x0) {
-        if ((this->header.image_type & 0x7) == 0x2)
-            fail("true-color images aren't supported yet");
         if ((this->header.image_type & 0x7) == 0x3)
             fail("gray-scale images aren't supported yet");
     }
 
-    {
-        size_t bits_per_pixel = this->header.image_spec.color_bits_per_pixel +
-            (this->header.image_spec.desc_bits_per_pixel & 0xf);
-        size_t bytes_per_pixel =
-            (bits_per_pixel / 8) + (bits_per_pixel % 8 == 0 ? 0 : 1);
-        size_t length = this->header.image_spec.height *
-            this->header.image_spec.width * bytes_per_pixel;
-
+    size_t bpp = this->header.image_spec.color_bits_per_pixel;
+    size_t bytes_per_pixel = (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
+    size_t length = this->header.image_spec.height *
+        this->header.image_spec.width * bytes_per_pixel;
+    bool is_rle = this->header.image_type & 0x8;
+    if (!is_rle) {
         this->image_data.reserve(length);
-        TGA::read_n_bytes(this->image_data.data(), length,
-                          "image data", file_ptr);
+        TGA::read_n_bytes(this->image_data.data(), length, "image data",
+                          file_ptr);
+    } else {
+        uint8_t* buf = new uint8_t[length];
+        size_t count = fread(buf, sizeof(uint8_t), length, file_ptr);
+        this->read_rle_image_data(buf, count, length, bytes_per_pixel);
+        delete[] buf;
     }
 
     fclose(file_ptr);
@@ -86,6 +88,46 @@ void TGA::read_n_bytes(uint8_t* out, size_t n, const char* name, FILE* file)
     }
 }
 
+template<typename T>
+static std::string byte_rep(const T& b)
+{
+    std::string r { "0b" };
+    for (ssize_t i = sizeof(T)*8-1; i >= 0; i--)
+        r += (b >> i) ? '1' : '0';
+    return r;
+}
+
+/* @NOTE: Requires a valid buffer of BUF_LEN length to read from. DATA_LEN is
+ * the length of the _decoded_ data that we calculated using width, height and
+ * pixel depth values from the header.
+ */
+void TGA::read_rle_image_data(uint8_t* buf, size_t buf_len, size_t data_len,
+                              size_t bytes_per_pixel)
+{
+    auto is_rle_packet  { [](uint8_t b) -> bool   { return b & 0x80; } };
+    auto get_run_length { [](uint8_t b) -> size_t { return (b & 0x7f) + 1; } };
+
+    // @BUG: We don't check before reading from BUF _within_ the loop.
+    size_t pos = 0;
+    while (data_len > 0 && buf_len > 0) {
+        bool parse_rle_packet = is_rle_packet(buf[pos]);
+        size_t run_len = get_run_length(buf[pos++]);
+        data_len -= run_len * bytes_per_pixel;
+        if (parse_rle_packet) {
+            while (run_len-- > 0)
+                for (size_t i = 0; i < bytes_per_pixel; i++)
+                    this->image_data.push_back(buf[pos+i]);
+            pos += bytes_per_pixel;
+        } else {
+            while (run_len-- > 0) {
+                for (size_t i = 0; i < bytes_per_pixel; i++)
+                    this->image_data.push_back(buf[pos++]);
+            }
+        }
+    }
+    assert(data_len == 0 && (pos + sizeof(Footer) == buf_len));
+}
+
 /* In case this TGA file doesn't follow the v2 spec, the footer we return is
  * not valid. That fact can be queried via the member IS_NEW_FORMAT.
  * We guarantee that after a call to PARSE_FOOTER, the read pointer of the
@@ -94,7 +136,7 @@ void TGA::read_n_bytes(uint8_t* out, size_t n, const char* name, FILE* file)
 void TGA::parse_footer(FILE* file)
 {
     const size_t seek_pos = -26;
-    fseek(file, seek_pos, SEEK_END);
+    assert(!fseek(file, seek_pos, SEEK_END));
 
     size_t ret = fread(&this->footer, sizeof(this->footer), 1, file);
     if (ret != 1) fail("cannot read last ", -seek_pos, " bytes from file");
@@ -114,10 +156,19 @@ void TGA::parse_footer(FILE* file)
 // We guarantee that the write pointer of FILE is at the start after we return.
 void TGA::parse_ext_area(FILE* file)
 {
-    fseek(file, this->footer.ext_area_offset, SEEK_SET);
+    assert(!fseek(file, this->footer.ext_area_offset, SEEK_SET));
     if (this->footer.ext_area_offset == 0) return;
 
     fread(&this->ext_area, sizeof(ext_area), 1, file);
+
+    // @NOTE: We aren't using any of the extension area fields.
+    if (this->ext_area.color_correction_offset != 0)
+        warn("there is a color correction table that we don't parse");
+    if (this->ext_area.postage_stamp_offset != 0)
+        warn("there is a postage stamp that we don't parse");
+    if (this->ext_area.scan_line_tbl_offset != 0)
+        warn("there is a scan line table that we don't parse");
+
     rewind(file);
 }
 
