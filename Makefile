@@ -1,10 +1,12 @@
 .DELETE_ON_ERROR:
 .EXPORT_ALL_VARIABLES:
-SRC_DIR   = src
-BUILD_DIR = build
-BIN_DIR   = bin
-BIN       = my_tinyrenderer
-BIN_FLAGS = "./assets/floor_diffuse.tga"
+SRC_DIR      = src
+BUILD_DIR    = build
+BIN_DIR      = bin
+BIN          = my_tinyrenderer
+BIN_FLAGS    = ./assets/floor_diffuse.tga
+GPROF_OUTPUT = analysis.txt
+G2D_OUTPUT   = call_graph.pdf
 
 SHELL = /bin/bash
 
@@ -18,11 +20,12 @@ LDFLAGS = -lm -dl -lstdc++
 # For release builds, set DEBUG to anything but "yes".
 DEBUG = yes
 ifeq ($(DEBUG), yes)
-	# to remove assertions, add -DNDEBUG below
-	CCFLAGS += -ggdb -fno-eliminate-unused-debug-symbols
+	# to remove <cassert>'s assertions, add -DNDEBUG below
+	CCFLAGS += -ggdb -pg -fno-eliminate-unused-debug-symbols
+	LDFLAGS += -ggdb -pg
 endif
 
-.PHONY: all $(BIN) install test clean help debug leak_test check
+.PHONY: all $(BIN) install test clean help debug leak_test check prof
 
 all: check dirs $(BIN)
 
@@ -35,7 +38,7 @@ define check_for_prog
 	@if ! command -v $(1) >/dev/null 2>&1; then \
 		printf "%s \`%s' %s %s.\n" \
 			"The program" $(1) "isn't available, please install it or change" \
-			"the configuration (see our \`Makefile' at the specified line)";  \
+			"the configuration (see main \`Makefile' at the specified line)"; \
 			exit 1; fi
 endef
 
@@ -45,6 +48,9 @@ check:
 	$(call check_for_prog, ctags)
 	$(call check_for_prog, gdb)
 	$(call check_for_prog, valgrind)
+	$(call check_for_prog, gprof)
+	$(call check_for_prog, gprof2dot)
+	$(call check_for_prog, dot)
 
 dirs: $(BUILD_DIR) $(BIN_DIR)
 
@@ -64,18 +70,25 @@ install: all
 test: all
 	./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
+# @NOTE: Targets DEBUG, LEAK_TEST and PROF require debugging information to
+# work correctly. Thus, DEBUG=yes is required.
 debug: all
 	gdb -q -tui -args ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 leak_test: all
 	valgrind -s --leak-check=full ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
+prof: all
+	- ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
+	gprof ./$(BUILD_DIR)/$(BIN) gmon.out > $(GPROF_OUTPUT)
+	gprof2dot -f prof $(GPROF_OUTPUT) | dot -Tpdf -o $(G2D_OUTPUT)
+
 # Since _all_ build artifacts are created in the build directory, we don't need
 # to recursively call any subdirectory's Makefile for cleanup. We check whether
 # the binary was installed in the base directory, because that might sometimes
 # be useful.
 clean:
-	rm -f tags
+	rm -f tags gmon.out $(GPROF_OUTPUT) $(G2D_OUTPUT)
 	rm -rf $(BUILD_DIR)
 	[[ '$(BIN_DIR)' != '.' ]] && rm -rf $(BIN_DIR) || rm -f $(BIN)
 
@@ -87,4 +100,6 @@ help:
 	@printf " clean:\t\tRemove all build artifacts.\n"
 	@printf " debug:\t\tCompile the program and enter gdb.\n"
 	@printf " leak_test:\tCompile the program and enter valgrind.\n"
+	@printf " prof:\t\tCompile the program and profile it.\n"
 	@printf "To enable debugging, add the additional argument \`DEBUG=yes'.\n"
+	@printf "This argument is required by targets DEBUG, LEAK_TEST and PROF.\n"
