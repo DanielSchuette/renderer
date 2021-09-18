@@ -1,3 +1,7 @@
 tags
 build/
 bin/
+gmon.out
+analysis.txt
+*.a
+*.o

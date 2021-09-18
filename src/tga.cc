@@ -16,6 +16,11 @@ TGA::TGA(std::string_view filepath)
     FILE* file_ptr = fopen(filepath.data(), "rb");
     if (file_ptr == nullptr) fail("cannot open file `", filepath, '\'');
 
+    /* TGA is a simple file format with header, footer and variable-sized
+     * fields inbetween them. TGA v2.0 defines a developer area and an
+     * extension field, but we don't care about those. With warnings enabled,
+     * we do print messages if they exist, though.
+     */
     TGA::parse_header(file_ptr);
     TGA::parse_footer(file_ptr);
 
