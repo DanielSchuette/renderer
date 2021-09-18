@@ -1,6 +1,6 @@
 /* The program entry point.
  *
- * my_tinyrenderer Copyright (C) 2021 Daniel Schuette
+ * renderer Copyright (C) 2021 Daniel Schuette
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

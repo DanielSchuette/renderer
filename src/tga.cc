@@ -1,17 +1,32 @@
+/* tga.cc implements a class to read and write TGA files. We support headers,
+ * footers, color palettes and (simple) modifications of images attributes.
+ *
+ * renderer Copyright (C) 2021 Daniel Schuette
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 #include <cstring>
 
 #include "tga.hh"
 #include "io.hh"
 
-/* @TODO: Review whether we should actually retain all the data that we do,
- * (or retain things like width/height/...).
- * Actually, we should retain header + footer info via our structs because
- * writing out TGA files becomes so much easier. And since we need to keep
- * all image data in core anyways, it's not a lot of overhead. We could of
- * course stream image data in, but why complicate matters?
+/* This constructor is used to read a TGA file at FILEPATH into memory. It can
+ * then be modified and written back to disk. Note that we keep all data in
+ * memory at all times. Right now, it seems like a premature optimization to
+ * change that.
  */
-TGA::TGA(std::string_view filepath)
-    : TGA {}
+TGA::TGA(std::string_view filepath) : TGA {}
 {
     FILE* file_ptr = fopen(filepath.data(), "rb");
     if (file_ptr == nullptr) fail("cannot open file `", filepath, '\'');

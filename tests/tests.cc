@@ -1,4 +1,4 @@
-/* Common header files shared by (almost) all source files.
+/* The entry point of our test suite. All tests are invoked from here.
  *
  * renderer Copyright (C) 2021 Daniel Schuette
  *
@@ -15,13 +15,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef _COMMON_HH_
-#define _COMMON_HH_
+#include "../src/common.hh"
 
-#include <cassert>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <string_view>
-
-#endif /* _COMMON_HH_ */
+int main(void)
+{
+    return 0;
+}
