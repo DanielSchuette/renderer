@@ -1,5 +1,5 @@
 /* tga.cc implements a class to read and write TGA files. We support headers,
- * footers, color palettes and (simple) modifications of images attributes.
+ * footers, color palettes and (simple) modifications of image attributes.
  *
  * renderer Copyright (C) 2021 Daniel Schuette
  *
@@ -77,7 +77,7 @@ TGA::TGA(std::string_view filepath) : TGA {}
             fail("gray-scale images aren't supported yet");
     }
 
-    size_t bpp = this->header.image_spec.color_bits_per_pixel;
+    size_t bpp = this->header.image_spec.bits_per_pixel;
     size_t bytes_per_pixel = (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
     size_t length = this->header.image_spec.height *
         this->header.image_spec.width * bytes_per_pixel;
@@ -130,7 +130,7 @@ void TGA::read_rle_image_data(uint8_t* buf, size_t buf_len, size_t data_len,
     // @BUG: We don't check before reading from BUF _within_ the loop.
     size_t pos = 0;
     while (data_len > 0 && buf_len > 0) {
-        bool parse_rle_packet = is_rle_packet(buf[pos]);
+        bool   parse_rle_packet = is_rle_packet(buf[pos]);
         size_t run_len = get_run_length(buf[pos++]);
         data_len -= run_len * bytes_per_pixel;
         if (parse_rle_packet) {
@@ -208,4 +208,41 @@ void TGA::parse_header(FILE* file)
         assert(!malformed && "malformed TGA header");
     }
     rewind(file);
+}
+
+// @NOTE: The current implementation is extremely wonky:
+//  1. We must flip the image if the origin is not in the lower-left corner.
+//  2. We should always write out an extension area.
+//  3. We should write a generic accessor to set individual pixels.
+//  4. We should validate the correct decoding of different pixel formats.
+//  5. We shoudl re-visit the documentation to ensure compliance.
+void TGA::write_to_file(std::string_view filepath)
+{
+    FILE* outfile = fopen(filepath.data(), "wb");
+    if (!outfile) fail("cannot open file `", filepath, '\'');
+
+    assert(
+        (this->header.image_spec.height * this->header.image_spec.width *
+         this->header.image_spec.bits_per_pixel / 8) ==
+        (this->image_data.size())
+    );
+
+    for (size_t row = 0; row < 40; row++) {
+        for (size_t col = 0; col < 2000; col += 4) {
+            size_t pos = this->width() * row + col;
+            this->image_data[pos + 0] = 0x0;  // b
+            this->image_data[pos + 1] = 0x0;  // g
+            this->image_data[pos + 2] = 0xff; // r
+            this->image_data[pos + 3] = 0xff; // a
+        }
+    }
+
+    // @NOTE: The image is no longer RLE encoded (even if it was before).
+    this->header.image_type &= 0xf7;
+
+    fwrite(&this->header, sizeof(this->header), 1, outfile);
+    fwrite(this->color_map.data(), this->color_map.size(), 1, outfile);
+    fwrite(this->image_id_data.data(), this->image_id_data.size(), 1, outfile);
+    fwrite(this->image_data.data(), this->image_data.size(), 1, outfile);
+    fwrite(&this->footer, sizeof(this->footer), 1, outfile);
 }

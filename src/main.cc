@@ -22,6 +22,7 @@ int main(int argc, char** argv)
 {
     if (argc < 2) fail("usage: renderer <tga_input_file>");
     TGA tga_file { *++argv };
+    tga_file.write_to_file("outfile.tga");
 
     return 0;
 }

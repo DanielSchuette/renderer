@@ -35,7 +35,7 @@ private:
         struct ImageSpec final {
             uint16_t x_origin, y_origin;
             uint16_t width, height;
-            uint8_t  color_bits_per_pixel;
+            uint8_t  bits_per_pixel; // @NOTE: total # of bits / pixel
             uint8_t  desc_bits_per_pixel;
         } __attribute__((packed)) image_spec;
     } __attribute__((packed)) header {};
@@ -44,13 +44,13 @@ private:
      * mostly application specific, we don't care and don't even parse it when
      * reading a TGA file from disk.
      */
-    struct Footer {
+    struct Footer final {
         uint32_t ext_area_offset;
         uint32_t dev_dir_offset;
         char signature[18]; // including a terminating '\0'
     } __attribute__((packed)) footer {};
 
-    struct ExtensionArea {
+    struct ExtensionArea final {
         uint16_t length;
         char     author_name[41];     // including a terminating '\0'
         char     author_comment[324]; // 4 strings, each terminated with '\0'
@@ -88,7 +88,6 @@ private:
     void parse_ext_area(FILE*);
     void read_rle_image_data(uint8_t*, size_t, size_t, size_t);
 
-
     static void read_n_bytes(uint8_t*, size_t, const char*, FILE*);
 
 public:
@@ -101,7 +100,17 @@ public:
     explicit TGA(std::string_view);
     explicit TGA(void) = default;
 
-    ~TGA(void) = default;
+    virtual ~TGA(void) = default;
+
+    void write_to_file(std::string_view);
+
+    size_t width(void) const
+    {
+        size_t bpp = this->header.image_spec.bits_per_pixel;
+        size_t bytes_per_pixel = (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
+        return this->header.image_spec.width * bytes_per_pixel;
+    }
+
 };
 
 #endif /* _TGA_HH_ */

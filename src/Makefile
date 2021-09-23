@@ -26,7 +26,7 @@ DEPS = $(SRCS:.cc=.d)
 # Also, for them to work, dependency files must be in the same directory as the
 # related object file.
 BUILD_DIR_PATH = ../$(BUILD_DIR)
-BIN_PATH 	   = $(BUILD_DIR_PATH)/$(BIN)
+BIN_PATH       = $(BUILD_DIR_PATH)/$(BIN)
 OBJS_PATH      = $(addprefix $(BUILD_DIR_PATH)/,$(OBJS))
 DEPS_PATH      = $(addprefix $(BUILD_DIR_PATH)/,$(DEPS))
 
