@@ -27,7 +27,7 @@ private:
         uint8_t id_length;
         uint8_t color_map_type;
         uint8_t image_type;
-        struct ColorMapSpec {
+        struct ColorMapSpec final {
             uint16_t first_entry_index;
             uint16_t length;
             uint8_t  bits_per_pixel;
@@ -109,6 +109,11 @@ public:
         size_t bpp = this->header.image_spec.bits_per_pixel;
         size_t bytes_per_pixel = (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
         return this->header.image_spec.width * bytes_per_pixel;
+    }
+
+    size_t height(void) const
+    {
+        return this->header.image_spec.height;
     }
 
 };

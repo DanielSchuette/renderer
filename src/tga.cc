@@ -215,7 +215,9 @@ void TGA::parse_header(FILE* file)
 //  2. We should always write out an extension area.
 //  3. We should write a generic accessor to set individual pixels.
 //  4. We should validate the correct decoding of different pixel formats.
-//  5. We shoudl re-visit the documentation to ensure compliance.
+//  5. We should re-visit the documentation to ensure compliance.
+//  6. We shouldn't reset the file pointer too often when reading the input.
+//  7. We should probably implement input file parsing outside the ctor.
 void TGA::write_to_file(std::string_view filepath)
 {
     FILE* outfile = fopen(filepath.data(), "wb");
