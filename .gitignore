@@ -2,8 +2,14 @@
 *.a
 *.d
 *.pdf
+*.tga
+
+test_suite
+prog
+renderer
 gmon.out
 analysis.txt
 tags
+
 build/
 bin/
