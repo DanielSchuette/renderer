@@ -16,9 +16,31 @@
 #ifndef _TGA_HH_
 #define _TGA_HH_
 
+#include <string>
 #include <vector>
 
 #include "common.hh"
+
+// Get the byte representation of a word W as a STD::STRING.
+template<typename T>
+std::string byte_as_str(const T& w)
+{
+    std::string r { "0b" };
+    for (ssize_t i = sizeof(T)*8-1; i >= 0; i--)
+        r += (w >> i) ? '1' : '0';
+    return r;
+}
+
+struct Pixel final {
+public:
+    uint8_t r = 0, g = 0, b = 0, a = 0xff;
+
+    Pixel(void) = default;
+    Pixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+        : r { r }, g { g }, b { b }, a { a }
+    {
+    }
+};
 
 class TGA {
 private:
@@ -35,8 +57,8 @@ private:
         struct ImageSpec final {
             uint16_t x_origin, y_origin;
             uint16_t width, height;
-            uint8_t  bits_per_pixel; // @NOTE: total # of bits / pixel
-            uint8_t  desc_bits_per_pixel;
+            uint8_t  bits_per_pixel; // total # of bits / pixel
+            uint8_t  descriptor;     // 0:3 = alpha channel bits, 4:5 = origin
         } __attribute__((packed)) image_spec;
     } __attribute__((packed)) header {};
 
@@ -86,13 +108,15 @@ private:
     void parse_header(FILE*);
     void parse_footer(FILE*);
     void parse_ext_area(FILE*);
-    void read_rle_image_data(uint8_t*, size_t, size_t, size_t);
+    void read_rle_image_data(uint8_t*, size_t, size_t);
+    void flip_image_horizontally(void);
+    void flip_image_vertically(void);
 
     static void read_n_bytes(uint8_t*, size_t, const char*, FILE*);
 
 public:
     /* We have two options for working with TGA files:
-     *  1. Open an existing file via its path and modify to our liking
+     *  1. Open an existing file via its path and modify it to our liking
      *  2. Create an TGA file with a desired set of parameters and write
      *     individual pixels into it
      * Both types of TGA files can be flushed to disk, of course.
@@ -104,18 +128,36 @@ public:
 
     void write_to_file(std::string_view);
 
-    size_t width(void) const
+    /* The width of an individual pixel in bytes. This might _not_ be the same
+     * as ``IMAGE_SPEC.BITS_PER_PIXEL / 8'', because pixels can use e.g. just
+     * 13 bits instead of using a multiple of 8; they are still written out in
+     * byte chunks, though.
+     */
+    inline uint8_t get_pixel_width(void) const
     {
         size_t bpp = this->header.image_spec.bits_per_pixel;
-        size_t bytes_per_pixel = (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
+        return (bpp / 8) + (bpp % 8 == 0 ? 0 : 1);
+    }
+
+    // The image width in _bytes_, not pixels.
+    inline size_t get_width(void) const
+    {
+        uint8_t bytes_per_pixel = this->get_pixel_width();
         return this->header.image_spec.width * bytes_per_pixel;
     }
 
-    size_t height(void) const
+    /* The number of scanlines in the image. Here, bytes vs. pixels do not
+     * matter as they do for WIDTH, because pixels cannot span scanlines.
+     */
+    inline size_t get_height(void) const
     {
         return this->header.image_spec.height;
     }
 
+    // @INCOMPLETE
+    inline void set_pixel(size_t, size_t, const Pixel&)
+    {
+    }
 };
 
 #endif /* _TGA_HH_ */

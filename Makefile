@@ -27,6 +27,7 @@ TESTS_BIN_FLAGS =
 LIB_NAME        = librender.a
 GPROF_OUTPUT    = analysis.txt
 G2D_OUTPUT      = call_graph.pdf
+EXTRA_CLEANUP   = outfile.tga
 
 SHELL = /bin/bash
 
@@ -40,9 +41,10 @@ LDFLAGS = -lm -dl -lstdc++
 # For release builds, set DEBUG to anything but "yes".
 DEBUG = yes
 ifeq ($(DEBUG), yes)
-	# to remove <cassert>'s assertions, add -DNDEBUG below
-	CCFLAGS += -ggdb -pg -fno-eliminate-unused-debug-symbols
-	LDFLAGS += -ggdb -pg
+	# To remove <cassert>'s assertions, add -DNDEBUG below.
+	# To enable profiling, add -pg to CCFLAGS and LDFLAGS.
+	CCFLAGS += -ggdb -fno-eliminate-unused-debug-symbols
+	LDFLAGS += -ggdb
 endif
 
 # We are depending on a few programs being available on the user's system. This
@@ -104,7 +106,8 @@ debug: all
 	gdb -q -tui -args ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 leak_test: all
-	valgrind -s --leak-check=full ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
+	valgrind -s --leak-check=full --show-leak-kinds=all \
+		./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
 
 prof: all
 	- ./$(BUILD_DIR)/$(BIN) $(BIN_FLAGS)
@@ -116,7 +119,7 @@ prof: all
 # the binary was installed in the base directory, because that might sometimes
 # be useful.
 clean:
-	rm -f tags gmon.out $(GPROF_OUTPUT) $(G2D_OUTPUT)
+	rm -f tags gmon.out $(GPROF_OUTPUT) $(G2D_OUTPUT) $(EXTRA_CLEANUP)
 	rm -rf $(BUILD_DIR)
 	[[ '$(BIN_DIR)' != '.' ]] && rm -rf $(BIN_DIR) || rm -f $(BIN)
 	cd $(TESTS_DIR) && $(MAKE) clean

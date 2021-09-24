@@ -1,4 +1,4 @@
-/* The program entry point.
+/* This is the program entry point.
  *
  * renderer Copyright (C) 2021 Daniel Schuette
  *
