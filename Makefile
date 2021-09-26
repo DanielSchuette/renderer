@@ -27,7 +27,7 @@ TESTS_BIN_FLAGS =
 LIB_NAME        = librender.a
 GPROF_OUTPUT    = analysis.txt
 G2D_OUTPUT      = call_graph.pdf
-EXTRA_CLEANUP   = outfile.tga
+EXTRA_CLEANUP   = outfile0.tga outfile0.tga
 
 SHELL = /bin/bash
 

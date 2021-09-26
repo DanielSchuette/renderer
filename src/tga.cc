@@ -15,6 +15,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * @TODO: Right now, our implementation is extremely wonky:
+ *  1. We should validate the correct decoding of different pixel formats.
+ *  2. We should re-visit the documentation to ensure compliance.
+ *  3. We assume less about the input format and program more defensively.
  */
 #include <algorithm>
 #include <cstring>
@@ -22,12 +27,32 @@
 #include "tga.hh"
 #include "io.hh"
 
+TGA::TGA(uint16_t width, uint16_t height, const Pixel& bg_pixel)
+{
+    /* We need to at least setup the header, footer and image data fields.
+     * Everything we don't explicitly set can be left 0-initialized.
+     */
+    this->header.image_type                = 0x2; // unencoded, true-color
+    this->header.image_spec.width          = width;
+    this->header.image_spec.height         = height;
+    this->header.image_spec.bits_per_pixel = 0x20; // 4 bytes per pixel
+    this->header.image_spec.descriptor     = 0x8;  // 1 byte alpha channel
+
+    memcpy(this->footer.signature, "TRUEVISION-XFILE.\0",
+           sizeof(this->footer.signature));
+
+    this->image_data.resize(this->get_bytes_width() * this->get_height(), 0);
+    for (size_t row = 0; row < this->get_height(); row++)
+        for (size_t col = 0; col < this->get_width(); col++)
+            this->set_pixel(row, col, bg_pixel);
+}
+
 /* This constructor is used to read a TGA file at FILEPATH into memory. It can
  * then be modified and written back to disk. Note that we keep all data in
  * memory at all times. Right now, it seems like a premature optimization to
  * change that.
  */
-TGA::TGA(std::string_view filepath) : TGA {}
+TGA::TGA(std::string_view filepath)
 {
     FILE* file_ptr = fopen(filepath.data(), "rb");
     if (file_ptr == nullptr) fail("cannot open file `", filepath, '\'');
@@ -47,7 +72,7 @@ TGA::TGA(std::string_view filepath) : TGA {}
      */
     {
         size_t length = header.id_length;
-        this->image_id_data.reserve(length);
+        this->image_id_data.resize(length, 0);
         TGA::read_n_bytes(this->image_id_data.data(), length, "image id",
                           file_ptr);
     }
@@ -59,27 +84,33 @@ TGA::TGA(std::string_view filepath) : TGA {}
             (this->header.color_map_spec.bits_per_pixel % 8 == 0 ? 0 : 1);
         size_t length = this->header.color_map_spec.length * bytes_per_entry;
 
-        this->color_map.reserve(length);
+        this->color_map.resize(length, 0);
         TGA::read_n_bytes(this->color_map.data(), length, "color map",
                           file_ptr);
     }
 
+    // @INCOMPLETE: We must decode color-maps into actual pixel data.
     if (this->header.color_map_type == 0x1) {
         assert((this->header.image_type & 0x7) == 0x1);
         assert(this->color_map.size() > 0);
         fail("color-mapped images aren't supported");
     }
 
+    // @INCOMPLETE: We must decode grayscale images into actual pixel data.
     if (this->header.color_map_type == 0x0) {
         if ((this->header.image_type & 0x7) == 0x3)
             fail("gray-scale images aren't supported");
     }
 
+    // @INCOMPLETE: We cannot work with anything than RGB(A) images for now.
+    if (this->get_pixel_width() < 3)
+        fail("other pixel formats than RGB(A) aren't support");
+
     size_t length = this->header.image_spec.height *
         this->header.image_spec.width * this->get_pixel_width();
     bool is_rle = this->header.image_type & 0x8;
     if (!is_rle) {
-        this->image_data.reserve(length);
+        this->image_data.resize(length, 0);
         TGA::read_n_bytes(this->image_data.data(), length, "image data",
                           file_ptr);
     } else {
@@ -154,6 +185,12 @@ void TGA::read_rle_image_data(uint8_t* buf, size_t buf_len, size_t data_len)
     auto get_run_length { [](uint8_t b) -> size_t { return (b & 0x7f) + 1; } };
     size_t bytes_per_pixel = this->get_pixel_width();
 
+    /* We're going to use PUSH_BACK for appending, so we RESERVE and don't
+     * RESIZE the vector. Probably an unnecessary optimization.
+     */
+    this->image_data.clear();
+    this->image_data.reserve(this->get_bytes_width() * this->get_height());
+
     // @BUG: We don't check before reading from BUF _within_ the loop.
     size_t pos = 0;
     while (data_len > 0 && buf_len > 0) {
@@ -204,11 +241,11 @@ void TGA::parse_footer(FILE* file)
 void TGA::parse_ext_area(FILE* file)
 {
     assert(!fseek(file, this->footer.ext_area_offset, SEEK_SET));
-    if (this->footer.ext_area_offset == 0) return;
 
     fread(&this->ext_area, sizeof(ext_area), 1, file);
+    assert(this->ext_area.length == TGA::EXT_AREA_SIZE);
 
-    // @NOTE: We aren't using any of the extension area fields.
+    // @NOTE: We aren't using any of the following extension area fields.
     if (this->ext_area.color_correction_offset != 0)
         warn("there is a color correction table that we don't parse");
     if (this->ext_area.postage_stamp_offset != 0)
@@ -217,59 +254,51 @@ void TGA::parse_ext_area(FILE* file)
         warn("there is a scan line table that we don't parse");
 }
 
-// @NOTE: The current implementation is extremely wonky:
-//  2. We should always write out an extension area.
-//  2. We should always write out a developer area?
-//  3. We should write a generic accessor to set individual pixels.
-//  4. We should validate the correct decoding of different pixel formats.
-//  5. We should re-visit the documentation to ensure compliance.
-//  6. We shouldn't reset the file pointer too often when reading the input.
-//  7. We should probably implement input file parsing outside the ctor.
 void TGA::write_to_file(std::string_view filepath)
 {
     FILE* outfile = fopen(filepath.data(), "wb");
     if (!outfile) fail("cannot open file `", filepath, '\'');
 
-    assert(
-        (this->header.image_spec.height * this->header.image_spec.width *
-         this->header.image_spec.bits_per_pixel / 8) ==
-        (this->image_data.size())
-    );
-
-    auto off = this->get_pixel_width();
-    for (size_t row = 0; row < 40; row++) {
-        for (size_t col = 0; col < 2000; col += off) {
-            size_t pos  = this->get_width() * row + col;
-            size_t opos = this->get_width() * (this->get_height()-row) + col;
-            for (size_t i = 0; i < off; i++) {
-                this->image_data[pos + i] = 0xff;
-                if (i == 1) this->image_data[pos + i] = 0x0;
-
-                this->image_data[opos + i] = 0xff;
-                if (i == 2) this->image_data[opos + i] = 0x0;
-            }
-        }
-    }
-    this->flip_image_horizontally();
-    this->flip_image_vertically();
+    assert((this->get_bytes_width()*this->get_height()) ==
+            this->image_data.size());
+    assert(this->header.color_map_spec.length == this->color_map.size());
+    assert(this->header.id_length == this->image_id_data.size());
 
     fwrite(&this->header, sizeof(this->header), 1, outfile);
     fwrite(this->color_map.data(), this->color_map.size(), 1, outfile);
     fwrite(this->image_id_data.data(), this->image_id_data.size(), 1, outfile);
     fwrite(this->image_data.data(), this->image_data.size(), 1, outfile);
+
+    this->footer.dev_dir_offset = 0; // if it even existed in the first place
+    this->footer.ext_area_offset = ftell(outfile);
+    this->update_ext_area();
+    fwrite(&this->ext_area, sizeof(this->ext_area), 1, outfile);
     fwrite(&this->footer, sizeof(this->footer), 1, outfile);
 
     fclose(outfile);
+}
+
+// @NOTE: The extension area is actually inspected by the FILE command.
+void TGA::update_ext_area(void)
+{
+    this->ext_area.length   = TGA::EXT_AREA_SIZE;
+    assert(sizeof(this->ext_area) == TGA::EXT_AREA_SIZE);
+    const char* author_name = "Daniel Schuette";
+    memcpy(this->ext_area.author_name, author_name, strlen(author_name)+1);
+    /* @INCOMPLETE: there are more things we could write here. Also, if we
+     * parsed an extension area, we aren't overwriting values that are now
+     * wrong, like date of creation, etc.
+     */
 }
 
 void TGA::flip_image_vertically(void)
 {
     for (size_t row = 0; row < this->get_height() / 2; row++) {
         size_t flip_row = this->get_height() - row - 1;
-        for (size_t col = 0; col < this->get_width(); col++)
+        for (size_t col = 0; col < this->get_bytes_width(); col++)
             std::swap(
-                this->image_data[row      * this->get_width() + col],
-                this->image_data[flip_row * this->get_width() + col]
+                this->image_data[row      * this->get_bytes_width() + col],
+                this->image_data[flip_row * this->get_bytes_width() + col]
             );
     }
 }
@@ -290,8 +319,8 @@ void TGA::flip_image_horizontally(void)
             size_t tcol = trans_byte_pos + pbyte;
             for (size_t row = 0; row < this->get_height(); row++)
                 std::swap(
-                    this->image_data[row * this->get_width() + ccol],
-                    this->image_data[row * this->get_width() + tcol]
+                    this->image_data[row * this->get_bytes_width() + ccol],
+                    this->image_data[row * this->get_bytes_width() + tcol]
                 );
         }
     }
