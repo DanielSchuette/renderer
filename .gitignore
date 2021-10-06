@@ -2,6 +2,7 @@
 *.a
 *.d
 *.pdf
+*.tga
 gmon.out
 analysis.txt
 tags

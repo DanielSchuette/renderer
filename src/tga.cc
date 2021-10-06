@@ -151,10 +151,11 @@ void TGA::read_n_bytes(uint8_t* out, size_t n, const char* name, FILE* file)
     }
 }
 
-// The caller must ensure that the read pointer of FILE is at the start of the
-// TGA file. After PARSE_HEADER returned, the read pointer will be at the first
-// byte _after_ the header. We perform a few checks to ensure that the header
-// is well formed).
+/* The caller must ensure that the read pointer of FILE is at the start of the
+ * TGA file. After PARSE_HEADER returned, the read pointer will be at the first
+ * byte _after_ the header. We perform a few checks to ensure that the header
+ * is well formed).
+ */
 void TGA::parse_header(FILE* file)
 {
     // @NOTE: TGA headers are little-endian, so we don't need to convert ints.
@@ -236,8 +237,9 @@ void TGA::parse_footer(FILE* file)
         this->parse_ext_area(file);
 }
 
-// After calling PARSE_EXT_AREA, the caller can no longer rely on the read
-// pointer of FILE to be at a specific position.
+/* After calling PARSE_EXT_AREA, the caller can no longer rely on the read
+ * pointer of FILE to be at a specific position.
+ */
 void TGA::parse_ext_area(FILE* file)
 {
     assert(!fseek(file, this->footer.ext_area_offset, SEEK_SET));

@@ -28,10 +28,10 @@ int main(int argc, char** argv)
     }
 
     {
-        TGA tga_file { 600, 400 };
+        TGA tga_file { 600, 400, Pixel { 0xff, 0, 0, 0xff } };
         for (size_t col = 0; col < 600; col++) {
-            tga_file.set_pixel(75, col, { 0, 0xff, 0, 0xff });
-            tga_file.set_pixel(150, col, { 0, 0xff, 0, 0xff });
+            tga_file.set_pixel(75, col, { 0, 0, 0xff, 0xff });
+            tga_file.set_pixel(150, col, { 0, 0, 0xff, 0xff });
         }
         tga_file.write_to_file("outfile1.tga");
     }
