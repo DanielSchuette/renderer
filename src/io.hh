@@ -50,13 +50,13 @@ void warn(Ts&&... args)
     os << ".\n";
 }
 
-// @NOTE: Needs some refactoring.
+/* @NOTE: Needs some refactoring. It doesn't really make sense to have a
+ * templated method in a class that might at some point be overridden. For now,
+ * we're probably good though.
+ */
 class Logger {
-private:
-    std::ostream& out_stream;
-
 public:
-    Logger(std::ostream& os) : out_stream { os } {}
+    Logger(void) {}
     Logger(const Logger&) = delete;
     Logger(Logger&&)      = delete;
     Logger& operator=(const Logger&) = delete;
