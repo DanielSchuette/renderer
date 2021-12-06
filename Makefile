@@ -25,9 +25,9 @@ TESTS_BIN       = test_suite
 BIN_FLAGS       = ./assets/floor_diffuse.tga
 TESTS_BIN_FLAGS =
 LIB_NAME        = librender.a
-GPROF_OUTPUT    = analysis.txt
+GPROF_OUTPUT    = analysis.txt gmon.out
 G2D_OUTPUT      = call_graph.pdf
-EXTRA_CLEANUP   = outfile.tga
+EXTRA_CLEANUP   = *.tga *.pdf # we don't want any of these at top-level
 
 SHELL = /bin/bash
 
@@ -119,7 +119,7 @@ prof: all
 # the binary was installed in the base directory, because that might sometimes
 # be useful.
 clean:
-	rm -f tags gmon.out $(GPROF_OUTPUT) $(G2D_OUTPUT) $(EXTRA_CLEANUP)
+	rm -f tags $(GPROF_OUTPUT) $(G2D_OUTPUT) $(EXTRA_CLEANUP)
 	rm -rf $(BUILD_DIR)
 	[[ '$(BIN_DIR)' != '.' ]] && rm -rf $(BIN_DIR) || rm -f $(BIN)
 	cd $(TESTS_DIR) && $(MAKE) clean

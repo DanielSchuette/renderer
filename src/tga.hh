@@ -23,11 +23,11 @@
 
 // Get the byte representation of a word W as a STD::STRING.
 template<typename T>
-std::string byte_as_str(const T& w)
+std::string word_as_str(const T& w)
 {
     std::string r { "0b" };
     for (ssize_t i = sizeof(T)*8-1; i >= 0; i--)
-        r += (w >> i) ? '1' : '0';
+        r += (w >> i) & 0x1 ? '1' : '0';
     return r;
 }
 
@@ -44,6 +44,8 @@ public:
 
 class TGA {
 private:
+    static constexpr uint16_t EXT_AREA_SIZE = 495;
+
     // Refer to the spec for a detailed description of these fields.
     struct Header final {
         uint8_t id_length;
@@ -56,7 +58,7 @@ private:
         } __attribute__((packed)) color_map_spec;
         struct ImageSpec final {
             uint16_t x_origin, y_origin;
-            uint16_t width, height;
+            uint16_t width, height;  // in pixel
             uint8_t  bits_per_pixel; // total # of bits / pixel
             uint8_t  descriptor;     // 0:3 = alpha channel bits, 4:5 = origin
         } __attribute__((packed)) image_spec;
@@ -109,6 +111,7 @@ private:
     void parse_footer(FILE*);
     void parse_ext_area(FILE*);
     void read_rle_image_data(uint8_t*, size_t, size_t);
+    void update_ext_area(void);
     void flip_image_horizontally(void);
     void flip_image_vertically(void);
 
@@ -122,7 +125,7 @@ public:
      * Both types of TGA files can be flushed to disk, of course.
      */
     explicit TGA(std::string_view);
-    explicit TGA(void) = default;
+    explicit TGA(uint16_t, uint16_t, const Pixel& = { 0, 0, 0, 0xff});
 
     virtual ~TGA(void) = default;
 
@@ -140,10 +143,15 @@ public:
     }
 
     // The image width in _bytes_, not pixels.
-    inline size_t get_width(void) const
+    inline size_t get_bytes_width(void) const
     {
         uint8_t bytes_per_pixel = this->get_pixel_width();
         return this->header.image_spec.width * bytes_per_pixel;
+    }
+
+    inline size_t get_width(void) const
+    {
+        return this->header.image_spec.width;
     }
 
     /* The number of scanlines in the image. Here, bytes vs. pixels do not
@@ -154,9 +162,23 @@ public:
         return this->header.image_spec.height;
     }
 
-    // @INCOMPLETE
-    inline void set_pixel(size_t, size_t, const Pixel&)
+    /* For now, we can only do pixel formats RGB and RGBA. For some reason,
+     * TGA actually stores them as BGR (probably endianess?). The alpha channel
+     * is optional and we can savely skip it, if the original image didn't have
+     * one. If we create our own image "from scratch", we just do RGBA. At some
+     * point, an option to adjust that might be useful, though.
+     */
+    inline void set_pixel(size_t r, size_t c, const Pixel& p)
     {
+        assert(this->get_pixel_width() >= 3 && "currently, we cannot work "
+               "with other pixel formats than RGB(A)");
+        size_t byte_pos = this->get_bytes_width() * r +
+                          this->get_pixel_width() * c;
+        this->image_data[byte_pos+0] = p.b;
+        this->image_data[byte_pos+1] = p.g;
+        this->image_data[byte_pos+2] = p.r;
+        if ((this->header.image_spec.descriptor & 0xf) > 0)
+            this->image_data[byte_pos+3] = p.a;
     }
 };
 

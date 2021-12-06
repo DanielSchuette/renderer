@@ -21,8 +21,20 @@
 int main(int argc, char** argv)
 {
     if (argc < 2) fail("usage: renderer <tga_input_file>");
-    TGA tga_file { *++argv };
-    tga_file.write_to_file("outfile.tga");
+
+    {
+        TGA tga_file { *++argv };
+        tga_file.write_to_file("outfile0.tga");
+    }
+
+    {
+        TGA tga_file { 600, 400, Pixel { 0xff, 0, 0, 0xff } };
+        for (size_t col = 0; col < 600; col++) {
+            tga_file.set_pixel(75, col, { 0, 0, 0xff, 0xff });
+            tga_file.set_pixel(150, col, { 0, 0, 0xff, 0xff });
+        }
+        tga_file.write_to_file("outfile1.tga");
+    }
 
     return 0;
 }

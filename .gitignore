@@ -3,12 +3,12 @@
 *.d
 *.pdf
 *.tga
+*.txt
+gmon.out
 
 test_suite
 prog
 renderer
-gmon.out
-analysis.txt
 tags
 
 build/
